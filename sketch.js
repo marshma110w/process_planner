@@ -29,6 +29,7 @@ class Process {
     if (this.isProcessing()) {
       this.done += this.delta;
     }
+
     this.x -= this.delta;
   }
 
@@ -48,7 +49,22 @@ class Process {
     else {
       this.sketch.noFill();
     }
-    this.sketch.rect(x, y, w, h); 
+    this.sketch.rect(x, y, w, h);
+    
+    if (this.process_start && (this.isProcessing() || this.isWaiting())) {
+      this.sketch.fill(0);
+      this.sketch.textSize(32);
+      this.sketch.text(((this.sketch.millis() - this.process_start) / 1000).toFixed(2), this.sketch.width * 0.9, this.y + 20);
+    }
+    
+    if (this.isGone()) {
+      if (this.process_start) {
+        this.sketch.fill('green');
+        this.sketch.textSize(32);
+        this.sketch.text(this.elapsed, this.sketch.width * 0.9, this.y + 20);
+      }
+    }
+    
   }
 
   isFar() {
@@ -92,6 +108,7 @@ class Process {
   setWaiting(waiting) {
     this.waiting = waiting;
     if (waiting) {
+      if (!this.process_start) this.process_start = this.sketch.millis();
       this.delta = 0;
       this.grid.planner.addWaiting(this);
     }
@@ -100,6 +117,8 @@ class Process {
   setGone(gone) {
     this.gone = gone;
     if (gone) {
+      this.elapsed = ((this.sketch.millis() - this.process_start) / 1000).toFixed(2);
+      this.grid.planner.elapsed_sum += parseFloat(this.elapsed);
       this.delta = 2 * this.speed;
     }
   }
@@ -218,6 +237,7 @@ class List {
 
 class ProcessPlannerFifo {
   constructor(grid) {
+    this.elapsed_sum = 0;
     this.grid = grid;
     this.waiting = new Queue();
     this.current_process = null;
@@ -238,8 +258,8 @@ class ProcessPlannerFifo {
         this.grid.drawArrow(this.current_process)
       }
       if (this.current_process && this.current_process.done >= this.current_process.length) {
-        this.current_process.setProcessing = false;
-        this.current_process.setGone = true;
+        this.current_process.setProcessing(false);
+        this.current_process.setGone(true);
         this.current_process = null;
       }
     }
@@ -248,6 +268,7 @@ class ProcessPlannerFifo {
 
 class ProcessPlannerShortestFirst {
   constructor(grid) {
+    this.elapsed_sum = 0;
     this.grid = grid;
     this.waiting = new List();
     this.current_process = null;
@@ -272,8 +293,8 @@ class ProcessPlannerShortestFirst {
         this.grid.drawArrow(this.current_process)
       }
       if (this.current_process && this.current_process.done >= this.current_process.length) {
-        this.current_process.setProcessing = false;
-        this.current_process.setGone = true;
+        this.current_process.setProcessing (false);
+        this.current_process.setGone(true);
         this.current_process = null;
       }
     }
@@ -293,6 +314,7 @@ class Grid {
     this.tracks = [];
     this.processes = [];
     this.processes_count = 0;
+    this.processes_total = 0;
     this.planner = new plannerClass(this);
 
     let step = this.height * 8 / 10 / this.tracks_count;
@@ -310,7 +332,11 @@ class Grid {
     this.sketch.line(this.width/50, y, x, y);
     this.sketch.line(x, y, x - dx, y + dy);
     this.sketch.line(x, y, x - dx, y - dy);
+  }
 
+  drawSum() {
+    this.sketch.textSize(16);
+    this.sketch.text("∑ =   " + this.planner.elapsed_sum.toFixed(2) + "\navg = " + (this.planner.elapsed_sum / this.processes_total).toFixed(2), this.sketch.width * 0.92, this.sketch.height * 0.9);
   }
 
   drawNumbersFifo() {
@@ -356,10 +382,16 @@ class Grid {
     for(let i=0; i<this.processes_count; i++) {
       this.processes[i].draw();
     }
+    
+    if (this.planner.waiting.length == 0 && !this.planner.current_process && this.planner.elapsed_sum) {
+      this.drawSum();
+    }
+
     this.planner.update();
   }
 
   addProcess(beginTime, length, track_index) {
+    this.processes_total++;
     let p = new Process(this.sketch, beginTime, length, this.tracks[track_index], this)
     this.processes[this.processes_count++] = p;
   }
@@ -368,15 +400,16 @@ class Grid {
 
 var f1 = function(sketch) {   
   sketch.setup = function() {
-    sketch.createCanvas(1100, 450);
+    sketch.createCanvas(1800, 450);
     sketch.background(0, 255, 0, 0.25);
     sketch.fill(255);
     sketch.frameRate(60);
     sketch.g = new Grid(sketch, ProcessPlannerFifo, sketch.width / 10);
 
-    sketch.g.addProcess(300, 500, 1);
+    sketch.g.addProcess(600, 500, 1);
     sketch.g.addProcess(100, 750, 0);
-    sketch.g.addProcess(700, 240, 2);
+    sketch.g.addProcess(1200, 240, 2);
+    sketch.g.addProcess(1200, 900, 3);    
   }
 
   sketch.draw = function() {
@@ -389,15 +422,16 @@ new p5(f1)
 
 var f2 = function(sketch) {
   sketch.setup = function() {
-    let canvas2 = sketch.createCanvas(1100, 450);
+    let canvas2 = sketch.createCanvas(1800, 450);
     canvas2.position(0, 460);
     sketch.background(0, 255, 0, 0.25);
     sketch.fill(255);
     sketch.frameRate(60);
     sketch.g = new Grid(sketch, ProcessPlannerShortestFirst, sketch.width / 10);
-    sketch.g.addProcess(300, 500, 1);
+    sketch.g.addProcess(600, 500, 1);
     sketch.g.addProcess(100, 750, 0);
-    sketch.g.addProcess(700, 240, 2);
+    sketch.g.addProcess(1200, 240, 2);
+    sketch.g.addProcess(1200, 900, 3);
   }
 
   sketch.draw = function() {
