@@ -1,13 +1,14 @@
 class Process {
-  constructor(beginTime, length, y, grid) {
+  constructor(sketch, beginTime, length, y, grid) {
+    this.sketch = sketch;
     this.beginTime = beginTime;
     this.length = length;
     this.grid = grid;
     this.speed = 5;
     this.delta = 0;
-    this.y = y - height/10;
-    this.h = height/10;
-    this.x = width;
+    this.y = y - sketch.height/10;
+    this.h = sketch.height/10;
+    this.x = sketch.width;
     this.coming = false;
     this.processing = false;
     this.waiting = false;
@@ -17,7 +18,7 @@ class Process {
   };
 
   update() {
-    if (this.isFar() && this.beginTime < millis()) {
+    if (this.isFar() && this.beginTime < this.sketch.millis()) {
       this.setFar(false);
       this.setComing(true);
     }
@@ -38,16 +39,16 @@ class Process {
     let w = this.length;
     let h = this.h;
     if (this.isProcessing()) {
-      fill(120, 30, 0);
+      this.sketch.fill(120, 30, 0);
     } else if (this.isComing()) {
-      fill(255);
+      this.sketch.fill(255);
     } else if (this.isWaiting()) {
-      fill(149, 149, 149);
+      this.sketch.fill(149, 149, 149);
     }
     else {
-      noFill();
+      this.sketch.noFill();
     }
-    rect(x, y, w, h); 
+    this.sketch.rect(x, y, w, h); 
   }
 
   isFar() {
@@ -283,29 +284,32 @@ class ProcessPlannerShortestFirst {
 }
 
 class Grid {
-  constructor(borderX) {
+  constructor(sketch, plannerClass, borderX) {
+    this.sketch = sketch;
+    this.width = sketch.width;
+    this.height = sketch.height;
     this.borderX = borderX;
     this.tracks_count = 4;
     this.tracks = [];
     this.processes = [];
     this.processes_count = 0;
-    this.planner = new ProcessPlannerShortestFirst(this);
+    this.planner = new plannerClass(this);
 
-    let step = height * 8 / 10 / this.tracks_count;
+    let step = this.height * 8 / 10 / this.tracks_count;
     for(let i=0; i<this.tracks_count; i++){
-      let y = height * 0.9 - step/3 - step * i;
+      let y = this.height * 0.9 - step/3 - step * i;
       this.tracks[i] = y;
     }
   }
 
   drawArrow(process) {
-    let y = process.y + height/20;
-    let x = width/15;
-    let dx = width/60;
-    let dy = height/100;
-    line(width/50, y, x, y);
-    line(x, y, x - dx, y + dy);
-    line(x, y, x - dx, y - dy);
+    let y = process.y + this.height/20;
+    let x = this.width/15;
+    let dx = this.width/60;
+    let dy = this.height/100;
+    this.sketch.line(this.width/50, y, x, y);
+    this.sketch.line(x, y, x - dx, y + dy);
+    this.sketch.line(x, y, x - dx, y - dy);
 
   }
 
@@ -314,9 +318,9 @@ class Grid {
       let p = this.processes[i];
       if (p.isWaiting()) {
         let num = this.planner.waiting.indexOf(p) + 1;
-        fill(0);
-        textSize(32);
-        text(num, p.x+20, p.y + 20);
+        this.sketch.fill(0);
+        this.sketch.textSize(32);
+        this.sketch.text(num, p.x+20, p.y + 20);
       }
     }
   }
@@ -332,23 +336,23 @@ class Grid {
     for (let i=0; i<ps.length; i++) {
       
       if (ps[i].isWaiting()) {
-        fill(0);
-        textSize(32);
-        text(num, ps[i].x+20, ps[i].y+20);
+        this.sketch.fill(0);
+        this.sketch.textSize(32);
+        this.sketch.text(num, ps[i].x+20, ps[i].y+20);
         num++;
       }
     }
   }
 
   draw() {
-    strokeWeight(4);
-    stroke(255);
-    line(this.borderX, height / 10, this.borderX, height * 0.9);
-    strokeWeight(2);
+    this.sketch.strokeWeight(4);
+    this.sketch.stroke(255);
+    this.sketch.line(this.borderX, this.height / 10, this.borderX, this.height * 0.9);
+    this.sketch.strokeWeight(2);
 
     for(let i=0; i<this.tracks_count; i++) {
-      line(this.borderX, this.tracks[i], width * 0.9, this.tracks[i]);
-    }
+      this.sketch.line(this.borderX, this.tracks[i], this.width * 0.9, this.tracks[i]);
+    } 
     for(let i=0; i<this.processes_count; i++) {
       this.processes[i].draw();
     }
@@ -356,27 +360,50 @@ class Grid {
   }
 
   addProcess(beginTime, length, track_index) {
-    let p = new Process(beginTime, length, this.tracks[track_index], this)
+    let p = new Process(this.sketch, beginTime, length, this.tracks[track_index], this)
     this.processes[this.processes_count++] = p;
   }
 }
 
-function setup() {
-  createCanvas(1100, 900);
-  background(0, 255, 0, 0.25);
-  fill(255);
-  frameRate(60);
-  g = new Grid(width / 10);
-  g.addProcess(300, 500, 1);
-  g.addProcess(100, 750, 0);
-  g.addProcess(700, 240, 2);
+
+var f1 = function(sketch) {   
+  sketch.setup = function() {
+    sketch.createCanvas(1100, 450);
+    sketch.background(0, 255, 0, 0.25);
+    sketch.fill(255);
+    sketch.frameRate(60);
+    sketch.g = new Grid(sketch, ProcessPlannerFifo, sketch.width / 10);
+
+    sketch.g.addProcess(300, 500, 1);
+    sketch.g.addProcess(100, 750, 0);
+    sketch.g.addProcess(700, 240, 2);
+  }
+
+  sketch.draw = function() {
+    sketch.background(50);
+    sketch.g.draw();
+  }
+
+}
+new p5(f1)
+
+var f2 = function(sketch) {
+  sketch.setup = function() {
+    let canvas2 = sketch.createCanvas(1100, 450);
+    canvas2.position(0, 460);
+    sketch.background(0, 255, 0, 0.25);
+    sketch.fill(255);
+    sketch.frameRate(60);
+    sketch.g = new Grid(sketch, ProcessPlannerShortestFirst, sketch.width / 10);
+    sketch.g.addProcess(300, 500, 1);
+    sketch.g.addProcess(100, 750, 0);
+    sketch.g.addProcess(700, 240, 2);
+  }
+
+  sketch.draw = function() {
+    sketch.background(50);
+    sketch.g.draw();
+  }
 }
 
-
-function draw() {
-  background(50);
-  g.draw();
-  // if (millis() >1000 && millis() < 1200) {
-  //   g.processes[2].setProcessing(true);
-  // }
-}
+new p5(f2)
